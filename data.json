@@ -1,0 +1,35 @@
+{
+    "30570": {
+        "TerminalID": "30570",
+        "client_code": "",
+        "UserID": "80028",
+        "T_code": "",
+        "T_alias": "",
+        "Branch": "",
+        "GRP": "",
+        "active": "",
+        "NeatID": " "
+    },
+    "30859": {
+        "TerminalID": "30859",
+        "client_code": "",
+        "UserID": "30001",
+        "T_code": "",
+        "T_alias": "",
+        "Branch": "",
+        "GRP": "",
+        "active": "",
+        "NeatID": " "
+    },
+    "22": {
+        "TerminalID": 22,
+        "client_code": "",
+        "UserID": 22,
+        "T_code": "",
+        "T_alias": "",
+        "Branch": "",
+        "GRP": "",
+        "active": "",
+        "NeatID": " "
+    }
+}
