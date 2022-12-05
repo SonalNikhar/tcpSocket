@@ -47,7 +47,7 @@ class Server(QMainWindow):
 
         st=time.time()
         path = r'\\192.168.102.102\TradeAPI\TradeCM_'+self.today+'.txt'
-        # path = r'\\192.168.102.102\TradeAPI\TradeFO_25112022.txt'
+        # path = r'\\192.168.102.102\TradeAPI\TradeCM_02122022.txt'
         #
         f=open(path,'r')
 
