@@ -22,8 +22,8 @@ class Server(QMainWindow):
         self.len=0
 
         self.tcpServer = QTcpServer(self)
-        PORT = 8000
-        address = QHostAddress('127.0.0.1')
+        PORT = 9000
+        address = QHostAddress('127.0.0.8')
         self.tcpServer.listen(address, PORT)
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 

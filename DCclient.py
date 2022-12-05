@@ -45,8 +45,8 @@ class Client(QMainWindow):
         self.makeRequest()
 
     def makeRequest(self):
-            HOST = '127.0.0.1'
-            PORT = 8000
+            HOST = '127.0.0.8'
+            PORT = 9000
             self.tcpSocket.connectToHost(HOST, PORT, QIODevice.ReadWrite)
 
     def sendD(self):

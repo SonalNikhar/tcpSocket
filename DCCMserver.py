@@ -23,7 +23,7 @@ class Server(QMainWindow):
 
         self.tcpServer = QTcpServer(self)
         PORT = 29620
-        address = QHostAddress('127.0.0.4')
+        address = QHostAddress('127.0.0.6')
         self.tcpServer.listen(address, PORT)
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
