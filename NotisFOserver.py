@@ -1,3 +1,5 @@
+import websocket
+
 import datetime
 
 import numpy as np
@@ -23,8 +25,10 @@ class Server(QMainWindow):
         self.len=0
 
         self.tcpServer = QTcpServer(self)
-        PORT = 31698
-        address = QHostAddress('127.0.0.9')
+        PORT = 8080
+        address = QHostAddress('192.168.102.169')
+        # PORT = 31698
+        # address = QHostAddress('127.0.0.9')
         self.tcpServer.listen(address, PORT)
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
@@ -47,7 +51,7 @@ class Server(QMainWindow):
 
         st=time.time()
         path = r'\\192.168.102.102\TradeAPI\TradeFO_'+self.today+'.txt'
-        # path = r'\\192.168.102.102\TradeAPI\TradeFO_25112022.txt'
+        # path = r'\\192.168.102.102\TradeAPI\TradeFO_23122022.txt'
         #
         f=open(path,'r')
 
@@ -132,7 +136,7 @@ class Server(QMainWindow):
         print('rows',self.rc)
         et = time.time()
         print('time',et-st)
-        self.arr = self.alltradearr[:self.rc,:].tolist()
+        # self.arr = self.alltradearr[:self.rc,:].tolist()
         # print(sys.getsizeof(self.arr))
 
 

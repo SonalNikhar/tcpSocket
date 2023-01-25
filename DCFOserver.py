@@ -119,7 +119,7 @@ class Server(QMainWindow):
         print('rows',self.rc)
         et = time.time()
         print('time',et-st)
-        self.arr = self.alltradearr[:self.rc,:].tolist()
+        # self.arr = self.alltradearr[:self.rc,:].tolist()
         # print(sys.getsizeof(self.arr))
 
 

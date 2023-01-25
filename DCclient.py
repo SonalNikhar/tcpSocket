@@ -95,7 +95,7 @@ class Client(QMainWindow):
 
             else:
 
-                data = self.tcpSocket.read(100)
+                data = self.tcpSocket.read(130)
                 print(data)
 
 
