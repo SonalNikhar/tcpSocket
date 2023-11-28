@@ -40,10 +40,10 @@ class Server(QMainWindow):
         self.today = datetime.datetime.today().strftime('%d%m%Y')
 
         self.today1 = datetime.datetime.today().strftime('%Y%m%d')
-        self.DCpath = r'\\192.168.102.112\Shared\OnlineTrades\%s\%s.txt' % (self.today1, self.today1)
-        # self.DCpath = r'\\192.168.102.112\Shared\OnlineTrades\20230428\20230428.txt'
-        self.notispath = r'\\192.168.102.102\TechExcel\TradeAPI\TradeFO_' + self.today + '.txt'
-        # self.notispath = path = r'\\192.168.102.102\TechExcel\TradeAPI\TradeFO_28042023.txt'
+        self.DCpath = r'\\192.168.102.222\Shared\OnlineTrades\\%s\\%sCM.txt' %(self.today1,self.today1)
+        # self.DCpath = r'\\192.168.102.222\Shared\OnlineTrades\20230403\20230403.txt'
+        self.notispath = r'\\192.168.102.102\TradeAPI\TradeCM_' + self.today + '.txt'
+        # self.notispath = path = r'\\192.168.102.102\TradeAPI\TradeFO_03042023.txt'
         #
         # self.clientList = []
         # self.tcpServer.newConnection.connect(self.dealCommunication)
@@ -58,46 +58,30 @@ class Server(QMainWindow):
     def On_readyRead(self):
         try:
             st=time.time()
-            DCdf = pd.read_csv(self.DCpath, header=None)
+            DCdf = pd.read_csv(self.DCpath, header=None, skiprows=self.DCSno)
             self.DCSno += DCdf.shape[0]
 
-            notisdf=pd.read_csv(self.notispath,header=None,dtype={20:str})
+            notisdf=pd.read_csv(self.notispath,header=None,skiprows=self.notisSNo,dtype={20:str})
             self.notisSNo += notisdf.shape[0]
 
-
-            # notisdf = pd.read_csv(self.notispath, header=None, dtype={20: str}, skiprows=self.notisSNo)
-            # #
-            # self.maindf = pd.concat([self.maindf, notisdf],
-            #                         axis=0, ignore_index=True)
-            # no = self.notisSNo
-            # #
-            # self.notisSNo = self.maindf.shape[0]
-            # #
-            # df1 = self.maindf
-
-
             # df = notisdf.iloc[:, [2,12]]
-            notisdf = notisdf.iloc[:, [2, 4, 5, 6, 7, 12, 23, 25, 26, 27, 28]]
+            notisdf = notisdf.iloc[:, [0, 5, 6, 7, 12, 26, 27]]
 
-            notisdf.columns = ['TradeNo', 'Token', 'Qty', 'Price', 'BuySell', 'ClientID', 'Symbol',
-                          'Instrument','EXP', 'Strike', 'OPTType']
+            notisdf.columns = ['TradeNo', 'Qty', 'Price', 'BuySell', 'ClientID', 'Symbol', 'Series',
+                          ]
 
-            convert_dict = { 'ClientID': str
+            convert_dict = {'ClientID': str
                             }
 
             notisdf = notisdf.astype(convert_dict)
 
-            # notisdf.drop_duplicates(subset=['TradeNo', 'ClientID'])
 
-            notisdf=notisdf.drop_duplicates()
-
-            # notisdf.to_csv('d:/dc33file.csv')
+            notisdf.drop_duplicates(subset=['TradeNo', 'ClientID'])
 
             # notisdf["Qty"] = np.where(notisdf['BuySell'] == 1, notisdf['Qty'], -notisdf['Qty'])
             # notisdf["TerminalID"] = np.where(notisdf['TerminalID'] == '0', notisdf['ClientID'], notisdf['TerminalID'])
             notisdf["Price"] = notisdf["Price"] / 100
-            notisdf["Strike"] = notisdf["Strike"] / 100
-            notisdf["EXP"] = notisdf["EXP"].apply(self.updateexp)
+
 
             # 'TradeNo', 'Token', 'Qty', 'Price', 'BuySell', 'ClientID', 'Symbol',
             # 'Instrument',
@@ -108,11 +92,10 @@ class Server(QMainWindow):
             #               ,'TradeNo']
 
 
-            DCdf = DCdf.iloc[:, [13,2,8,9,12,10,3,7,4,5,6]]
+            DCdf = DCdf.iloc[:, [9,4,5,7,2,3,8]]
 
-            DCdf.columns = ['TradeNo', 'Token', 'Qty', 'Price', 'BuySell', 'ClientID', 'Symbol',
-            'Instrument',
-            'EXP', 'Strike', 'OPTType']
+            DCdf.columns = ['TradeNo', 'Qty', 'Price', 'BuySell', 'ClientID', 'Symbol', 'Series',
+                          ]
 
             convert_dict = {'ClientID': str
                             }
@@ -132,28 +115,21 @@ class Server(QMainWindow):
             # # print(i1)
             # # print(i2)
             dd=notisdf[~i1.isin(i2)]
-            dd.to_csv('DCNew.csv')
+            # dd.to_csv('d:\DC12.csv')
 
             # ff=pd.concat([notisdf,DCdf])
             # ff1=ff.drop_duplicates(subset=['TradeNo', 'ClientID'],keep=False)
             #
             self.ffff = open(self.DCpath, 'a+')
-            # self.ffff = open('dccopy', 'a+')
             #
             for index, data in dd.iterrows():
                 # print(row["Name"], row["Age"])
-                trd_string = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' % (
-                    0, 'NSEFO', data['Token'], data['Symbol'], data['EXP'], data['Strike'],
-                    data['OPTType'], data['Instrument'], data['Qty'], data['Price'], data['ClientID'],
-                    0, data['BuySell'],
-                    data['TradeNo'])
-
-                # print('kldjk')
+                trd_string = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' % (0,'NSECM',data['ClientID'],data['Symbol'],data['Qty'],data['Price'],
+                                                                  0,data['BuySell'],data['Series'],data['TradeNo'])
 
                 self.ffff.write(trd_string)
 
             self.ffff.close()
-            print('done')
 
 
             # trd_string = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' % (
@@ -193,8 +169,7 @@ class Server(QMainWindow):
 
 
         except pd.errors.EmptyDataError:
-            print('emptyFile')
-            # print(traceback.print_exc())
+            print('dfdf')
         except:
             print(traceback.print_exc())
     def updateexp(self,exp):

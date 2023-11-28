@@ -28,6 +28,8 @@ class Client(QMainWindow):
         self.timer.timeout.connect(self.On_readyRead)
         self.timer.start()
 
+        # self.sendD()
+
         self.le = QLineEdit(self)
         self.le.setGeometry(20, 20, 200, 20)
 
@@ -45,8 +47,8 @@ class Client(QMainWindow):
         self.makeRequest()
 
     def makeRequest(self):
-            HOST = '127.0.0.3'
-            PORT = 30698
+            HOST = '192.168.130.42'
+            PORT = 8080
             self.tcpSocket.connectToHost(HOST, PORT, QIODevice.ReadWrite)
 
     def sendD(self):

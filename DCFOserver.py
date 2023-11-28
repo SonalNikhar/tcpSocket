@@ -6,12 +6,13 @@ import sys
 import traceback
 import json
 import pickle
-
+import pandas as pd
 from PyQt5.QtCore import QByteArray, QDataStream, QIODevice
 from PyQt5.QtWidgets import QApplication, QDialog,QMainWindow
 from PyQt5.QtNetwork import QHostAddress, QTcpServer
 from PyQt5.QtWidgets import  *
 from PyQt5.QtCore import *
+from pymongo import MongoClient
 
 
 
@@ -20,14 +21,18 @@ class Server(QMainWindow):
         super().__init__()
         self.rc = 0
         self.len=0
+        self.DCSNo=0
+        self.Expense()
 
         self.tcpServer = QTcpServer(self)
-        PORT = 9000
-        address = QHostAddress('127.0.0.8')
+        PORT = 22288
+        address = QHostAddress('192.168.130.42')
         self.tcpServer.listen(address, PORT)
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
         self.today = datetime.datetime.today().strftime('%Y%m%d')
+        self.path = r'\\192.168.102.112\Shared\OnlineTrades\\%s\\%s.txt' % (self.today, self.today)
+        # self.path = r'\\192.168.102.112\Shared\OnlineTrades\\20230428\\20230428.txt'
 
         self.alltradearr = np.empty((100000, 13), dtype=object)
 
@@ -35,11 +40,109 @@ class Server(QMainWindow):
         self.tcpServer.newConnection.connect(self.dealCommunication)
         self.timer=QTimer()
         self.timer.setInterval(3000)
-        self.timer.timeout.connect(self.tradeFiletoNumpy)
+        self.timer.timeout.connect(self.On_readyRead)
         # self.timer.start()
         # self.tradeFiletoNumpy()
 
+    def Expense(self):
+        mongoclient = MongoClient("192.168.130.42", 27017)
+        Calculation_data = mongoclient['Calculated_data']
+        Expense_collection = Calculation_data['Expense']
+        self.dbExpense = list(Expense_collection.find())
+        self.Expense = pd.DataFrame(self.dbExpense)[
+            ['particulars', 'f_buy', 'f_sell', 'o_buy', 'o_sell', 'i_buy', 'i_sell', 'd_buy', 'd_sell']].values
 
+        self.f_buyex = self.Expense[:, 1].sum()
+        self.f_sellex = self.Expense[:, 2].sum()
+        self.o_buyex = self.Expense[:, 3].sum()
+        self.o_sellex = self.Expense[:, 4].sum()
+    def On_readyRead(self):
+        try:
+            st=time.time()
+            df=pd.read_csv(self.path,header=None,skiprows=self.DCSNo,dtype={4:str})
+
+
+            if df.shape[0]!=0:
+
+                self.DCSNo+=df.shape[0]
+                # print(df.columns)
+
+
+                df.columns = ['t1', 'Exch', 'Token', 'Symbol', 'EXP', 'Strike', 'OptType', 'Instrument',
+                                 'Qty', 'Price','ClentID','OPNo','BuySell','TradeNo']
+
+
+                convert_dict = {'EXP': str,'ClentID':str
+                                }
+
+                df = df.astype(convert_dict)
+
+                # df.drop_duplicates(subset=['TradeNo','ClientID'])
+                # print(df.dtypes)
+
+                # df['TerminalID'] = df['TerminalID'].astype(str)
+
+
+                df["Qty"]=np.where(df['BuySell']==1, df['Qty'], -df['Qty'])
+
+
+
+
+                # float(int(data[6]) / 100) * -TQty
+
+                df["Tradeamt"]=-df["Qty"] * df["Price"]
+
+                df["Val"] = abs(df["Tradeamt"]) / 10000000
+
+
+                df["TOC"] = np.where(df['OptType']=='XX', np.where(df['BuySell']==1,(df['Val'] * self.f_buyex), (df['Val'] * self.f_sellex)),np.where(df['BuySell']==1,(df['Val'] * self.o_buyex), (df['Val'] * self.o_sellex)))
+
+                # print(df["Qty"])
+                # print(df["Tradeamt"])
+                # print(df.columns)
+
+
+                # df=df.groupby(['TerminalID','Token','EXP','Strike','OPTType','Symbol','Instrument'])["Qty","Tradeamt"].sum().reset_index()
+                df=df.groupby(['ClentID','Token','EXP','Strike','OptType','Symbol','Instrument']).aggregate({'Qty':'sum','Tradeamt':'sum','TOC':'sum'}).reset_index()
+                # for i in df.to_numpy():
+                #     # print(type(row))
+                    # self.sgdatasend.emit(i)
+                et=time.time()
+                print('et',et-st)
+
+                # df.to_csv('d:/aaa.csv')
+                # print('fjdf')
+                for row in df.values.tolist():
+                    for izzz in self.clientList:
+                        row=str(row)
+                        # print(row)
+                        jd = row.encode('UTF-8')
+                        # print('djf',jd)
+                        size = len(jd)
+
+
+
+                        # print('size',size)
+                        if (size > 200):
+                            print('size', size)
+                        #
+                        blank = 200 - size
+                        k = row + (blank * ' ')
+                        #
+                        jd = k.encode('UTF-8')
+
+                        # data = pickle.dumps(row)
+
+                        # izzz.write(data)
+
+                        izzz.write(jd)
+                        # print('7777', len(jd))
+                        # print('rc', self.rc)
+
+        except pd.errors.EmptyDataError:
+            print('dfdf')
+        except:
+            print(traceback.print_exc())
 
     def tradeFiletoNumpy(self):
 
@@ -47,7 +150,7 @@ class Server(QMainWindow):
         st=time.time()
         path = r'\\192.168.102.222\Shared\OnlineTrades\\%s\\%s.txt' %(self.today,self.today)
 
-        # path = r'\\192.168.102.222\Shared\OnlineTrades\20221202\20221202.txt'
+        # path = r'\\192.168.102.222\Shared\OnlineTrades\20230210\20230210.txt'
 
         f=open(path,'r')
 
@@ -163,7 +266,8 @@ class Server(QMainWindow):
 
 
                 elif(data['Type']=='sendTrade'):
-                    self.tradeFiletoNumpy()
+                    print('djkfj')
+                    self.On_readyRead()
                     self.timer.start()
                 #     try:
                 #         print(len(self.arr))
@@ -196,7 +300,7 @@ class Server(QMainWindow):
 
 
         # now disconnect connection.
-        print('disconnected')
+        # print('disconnected')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

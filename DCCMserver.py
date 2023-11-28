@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import QApplication, QDialog,QMainWindow
 from PyQt5.QtNetwork import QHostAddress, QTcpServer
 from PyQt5.QtWidgets import  *
 from PyQt5.QtCore import *
+from pymongo import MongoClient
+import pandas as pd
 
 
 
@@ -20,14 +22,17 @@ class Server(QMainWindow):
         super().__init__()
         self.rc = 0
         self.len=0
-
+        self.DCSNo=0
+        self.Expense()
         self.tcpServer = QTcpServer(self)
-        PORT = 29620
-        address = QHostAddress('127.0.0.6')
+        PORT = 27777
+        address = QHostAddress('192.168.130.42')
         self.tcpServer.listen(address, PORT)
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
         self.today = datetime.datetime.today().strftime('%Y%m%d')
+        self.path = r'\\192.168.102.112\Shared\OnlineTrades\\%s\\%sCM.txt' %(self.today,self.today)
+        # self.path = r'\\192.168.102.112\Shared\OnlineTrades\20230428\20230428CM.txt'
 
         self.alltradearr = np.empty((100000, 13), dtype=object)
 
@@ -35,11 +40,110 @@ class Server(QMainWindow):
         self.tcpServer.newConnection.connect(self.dealCommunication)
         self.timer=QTimer()
         self.timer.setInterval(3000)
-        self.timer.timeout.connect(self.tradeFiletoNumpy)
+        self.timer.timeout.connect(self.On_readyRead)
         # self.timer.start()
         # self.tradeFiletoNumpy()
 
 
+    def Expense(self):
+        mongoclient = MongoClient("192.168.130.42", 27017)
+        Calculation_data = mongoclient['Calculated_data']
+        Expense_collection = Calculation_data['Expense']
+        self.dbExpense = list(Expense_collection.find())
+        self.Expense = pd.DataFrame(self.dbExpense)[
+            ['particulars', 'f_buy', 'f_sell', 'o_buy', 'o_sell', 'i_buy', 'i_sell', 'd_buy', 'd_sell']].values
+
+        self.i_buyex = self.Expense[:, 5].sum()
+        self.i_sellex = self.Expense[:, 6].sum()
+        self.d_buyex = self.Expense[:, 7].sum()
+        self.d_sellex = self.Expense[:, 8].sum()
+
+
+    def On_readyRead(self):
+        try:
+            # q '], data['Buy_Sell'], data['Series'], data['tradeNO']
+
+            st = time.time()
+            df = pd.read_csv(self.path, header=None, skiprows=self.DCSNo)
+
+            if df.shape[0] != 0:
+
+                self.DCSNo += df.shape[0]
+                # print(df.columns)
+                # print(df.dtypes)
+                # df = df.iloc[:, [2, 4, 5, 6, 7,12, 20,23, 25, 26, 27, 28]]
+
+                df.columns = ['t1', 'Exch', 'ClentID', 'Symbol',
+                              'Qty', 'Price', 'Opt_Orderno', 'BuySell', 'Series', 'TradeNo']
+
+                # df.drop_duplicates(subset=['TradeNo','ClientID'])
+                # print(df.dtypes)
+
+                # df['TerminalID'] = df['TerminalID'].astype(str)
+
+                convert_dict = { 'ClentID': str
+                                }
+
+                df = df.astype(convert_dict)
+
+                df["Qty"] = np.where(df['BuySell'] == 1, df['Qty'], -df['Qty'])
+
+                # float(int(data[6]) / 100) * -TQty
+
+                df["Tradeamt"] = -df["Qty"] * df["Price"]
+
+                df = df.groupby(['ClentID', 'Series', 'Symbol', 'BuySell']).aggregate(
+                    {'Qty': 'sum', 'Tradeamt': 'sum', 'Price': 'mean'}).reset_index()
+
+                df["BQty"] = np.where(df['BuySell'] == 1, df['Qty'], 0.0)
+                df["SQty"] = np.where(df['BuySell'] == 2, df['Qty'], 0.0)
+
+                df["BAmt"] = np.where(df['BuySell'] == 1, df['Tradeamt'], 0.0)
+                df["SAmt"] = np.where(df['BuySell'] == 2, df['Tradeamt'], 0.0)
+
+                # df.to_csv('d:/aba.csv')
+
+                df = df.groupby(['ClentID', 'Series', 'Symbol']).aggregate(
+                    {'Qty': 'sum', 'Tradeamt': 'sum', 'Price': 'mean', 'BQty': 'sum', 'SQty': 'sum', 'BAmt': 'sum',
+                     'SAmt': 'sum'}).reset_index()
+
+                df["IntraDayQty"] = np.where(abs(df['BQty']) < abs(df['SQty']), abs(df['BQty']), abs(df['SQty']))
+
+                df["BuyIntra"] = (abs(df["IntraDayQty"] * df["Price"]) / 10000000) * self.i_buyex
+                df["SellIntra"] = (abs(df["IntraDayQty"] * df["Price"]) / 10000000) * self.i_sellex
+
+                df["TotalIntra"] = df["BuyIntra"] + df["SellIntra"]
+
+
+                # for i in df.to_numpy():
+                #     # print(type(row))
+                # self.sgdatasend.emit(i)
+                et = time.time()
+                print('et', et - st)
+
+                # df.to_csv('d:/aaa.csv')
+                # print('fjdf')
+                for row in df.values.tolist():
+                    for izzz in self.clientList:
+                        row = str(row)
+                        jd = row.encode('UTF-8')
+                        size = len(jd)
+
+                        blank = 200 - size
+                        k = row + (blank * ' ')
+
+                        jd = k.encode('UTF-8')
+                        izzz.write(jd)
+                        print(len(jd))
+                        print(self.rc)
+
+                        # self.clientConnection.waitForBytesWritten(5000)
+                        # time.sleep(0.005)
+
+        except pd.errors.EmptyDataError:
+            print('dfdf')
+        except:
+            print(traceback.print_exc())
 
     def tradeFiletoNumpy(self):
 
@@ -140,7 +244,7 @@ class Server(QMainWindow):
 
 
                 elif(data['Type']=='sendTrade'):
-                    self.tradeFiletoNumpy()
+                    self.On_readyRead()
                     self.timer.start()
                 #     try:
                 #         print(len(self.arr))
@@ -173,7 +277,7 @@ class Server(QMainWindow):
 
 
         # now disconnect connection.
-        print('disconnected')
+        # print('disconnected')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
