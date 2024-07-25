@@ -25,17 +25,15 @@ class Server(QMainWindow):
 
 
         self.tcpServer = QTcpServer(self)
-        PORT = 8585
+        PORT = 22888
         address = QHostAddress('192.168.130.42')
-        # PORT = 31698
-        # address = QHostAddress('127.0.0.9')
-        self.tcpServer.listen(address, PORT)
-        # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
-        self.today = str(datetime.datetime.today().day)
+
+
+        self.today = datetime.datetime.today().strftime("%d")
         print(self.today)
         self.path = r'\\192.168.102.111\Export\6405AD2TR' + self.today + '01.csv'
-        # self.path = r'\\192.168.102.111\Export\6405AD2TR0801.csv'
+
         self.notisSNo=1
         self.maindf=pd.DataFrame()
 
@@ -45,17 +43,13 @@ class Server(QMainWindow):
         self.getBSEcontraact()
 
         self.tcpServer.newConnection.connect(self.dealCommunication)
-        # self.On_readyRead1()
+
         self.timer=QTimer()
         self.timer.setInterval(10000)
         self.timer.timeout.connect(self.On_readyRead1)
+        self.tcpServer.listen(address, PORT)
+        self.tcpServer.waitForNewConnection(1000000)
 
-
-
-
-
-        # self.timer.start()
-        # self.tradeFiletoNumpy()
 
     def Expense(self):
         mongoclient = MongoClient("192.168.130.42", 27017)
@@ -99,6 +93,7 @@ class Server(QMainWindow):
 
             # print('notis',self.notisSNo)
             # print(df1)
+
             df1=pd.read_csv(self.path,header=None,dtype={21:str,2:int,4:int},skiprows=self.notisSNo)
 
             self.notisSNo = self.notisSNo+df1.shape[0]

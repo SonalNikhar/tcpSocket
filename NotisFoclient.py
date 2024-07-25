@@ -13,7 +13,7 @@ class Client(QMainWindow):
         super().__init__()
         self.tcpSocket = QTcpSocket(self)
 
-        self.makeRequest()
+
         self.isLoggedIn = False
         self.tcpSocket.waitForConnected(1000)
         # send any message you like it could come from a widget text.
@@ -38,6 +38,8 @@ class Client(QMainWindow):
         self.pb.clicked.connect(self.sendD)
         self.c=0
 
+        self.makeRequest()
+
 
     def on_connect(self):
         print('connected')
@@ -48,7 +50,7 @@ class Client(QMainWindow):
 
     def makeRequest(self):
             HOST = '192.168.130.42'
-            PORT = 8080
+            PORT = 22666
             self.tcpSocket.connectToHost(HOST, PORT, QIODevice.ReadWrite)
 
     def sendD(self):
@@ -74,26 +76,27 @@ class Client(QMainWindow):
         try:
 
 
-            print('hello')
+            # print('hello')
 
 
             if(self.isLoggedIn==False):
 
                 # d = data.decode()
                 data = self.tcpSocket.read(1024)
-                data = pickle.loads(data)
-                if(len(data)>1):
+                if data:
+                    data = pickle.loads(data)
+                    if(len(data)>1):
 
 
-                    if (data['Type'] == 'AuthRes'):
-                        if(data['status']=='Connected'):
-                            print('Connected...')
-                            self.sendtrade()
-                            self.isLoggedIn=True
+                        if (data['Type'] == 'AuthRes'):
+                            if(data['status']=='Connected'):
+                                print('Connected...')
+                                self.sendtrade()
+                                self.isLoggedIn=True
 
 
-                        else:
-                            print('Retry')
+                            else:
+                                print('Retry')
 
             else:
 

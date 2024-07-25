@@ -25,9 +25,9 @@ class Server(QMainWindow):
         self.DCSNo=0
         self.Expense()
         self.tcpServer = QTcpServer(self)
-        PORT = 27777
+        PORT = 22999
         address = QHostAddress('192.168.130.42')
-        self.tcpServer.listen(address, PORT)
+
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
         self.today = datetime.datetime.today().strftime('%Y%m%d')
@@ -43,6 +43,8 @@ class Server(QMainWindow):
         self.timer.timeout.connect(self.On_readyRead)
         # self.timer.start()
         # self.tradeFiletoNumpy()
+        self.tcpServer.listen(address, PORT)
+        self.tcpServer.waitForNewConnection(1000000)
 
 
     def Expense(self):
@@ -114,6 +116,7 @@ class Server(QMainWindow):
 
                 df["TotalIntra"] = df["BuyIntra"] + df["SellIntra"]
 
+                df.iloc[:,"fjdfj"]="gdfgdfg"
 
                 # for i in df.to_numpy():
                 #     # print(type(row))

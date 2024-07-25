@@ -25,9 +25,9 @@ class Server(QMainWindow):
         self.Expense()
 
         self.tcpServer = QTcpServer(self)
-        PORT = 22288
+        PORT = 22777
         address = QHostAddress('192.168.130.42')
-        self.tcpServer.listen(address, PORT)
+
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
         self.today = datetime.datetime.today().strftime('%Y%m%d')
@@ -43,6 +43,9 @@ class Server(QMainWindow):
         self.timer.timeout.connect(self.On_readyRead)
         # self.timer.start()
         # self.tradeFiletoNumpy()
+
+        self.tcpServer.listen(address, PORT)
+        self.tcpServer.waitForNewConnection(1000000)
 
     def Expense(self):
         mongoclient = MongoClient("192.168.130.42", 27017)

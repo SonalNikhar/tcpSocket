@@ -28,10 +28,10 @@ class Server(QMainWindow):
 
         self.Expense()
         self.tcpServer = QTcpServer(self)
-        PORT = 25555
+        PORT = 22555
         # PORT = 8888
         address = QHostAddress('192.168.130.42')
-        self.tcpServer.listen(address, PORT)
+
         # self.alltradearr = np.empty((1000000, 17), dtype=object)
 
         self.alltradearr = np.empty((100000, 13), dtype=object)
@@ -40,6 +40,7 @@ class Server(QMainWindow):
         # self.path = r'\\192.168.102.102\TradeAPI\TradeCM_28042023.txt'
 
         self.clientList = []
+        self.client_Dict = {}
         self.tcpServer.newConnection.connect(self.dealCommunication)
         self.timer=QTimer()
         self.timer.setInterval(10000)
@@ -48,6 +49,9 @@ class Server(QMainWindow):
 
         # self.timer.start()
         # self.tradeFiletoNumpy()
+
+        self.tcpServer.listen(address, PORT)
+        self.tcpServer.waitForNewConnection(1000000)
 
     def Expense(self):
         mongoclient = MongoClient("192.168.130.42", 27017)
@@ -67,33 +71,26 @@ class Server(QMainWindow):
             st=time.time()
             df1=pd.read_csv(self.path,header=None,skiprows=self.notisSNo,dtype={23:str})
 
-            self.maindf = pd.concat([self.maindf, df1],
-                                    axis=0, ignore_index=True)
+            self.notisSNo += df1.shape[0]
 
-            df1 = self.maindf
+            df1 = df1.iloc[:, [0, 4, 5, 6, 7, 12, 23, 26, 27]]
 
-            if df1.shape[0]!=0:
+            df1.columns = ['TradeNo', 'Token', 'Qty', 'Price', 'BuySell', 'ClientID', 'TerminalID', 'Symbol', 'Series',
+                           ]
 
 
-                # print(df.columns)
-                # print(df.dtypes)
-                df1 = df1.iloc[:, [0, 4, 5, 6, 7,12,23,26, 27]]
+            df1 = df1.drop_duplicates()
 
-                df1.columns = ['TradeNo', 'Token', 'Qty', 'Price', 'BuySell', 'ClientID', 'TerminalID', 'Symbol', 'Series',
-                                 ]
+            tradesDict = dict(zip(df1['TradeNo'], df1['ClientID']))
 
-                # df=df.drop_duplicates(subset=['TradeNo','ClientID'])
-                df=df1.drop_duplicates()
+            common_keys = set(self.client_Dict.keys()) & set(tradesDict.keys())
 
-                df = df.loc[self.notisSNo:, :]
+            self.client_Dict.update(tradesDict)
 
-                self.notisSNo = self.maindf.shape[0]
+            df = df1[~df1['TradeNo'].isin(common_keys)]
+            print('common_keys', common_keys, df1.shape, df.shape)
 
-                # pd.merge(contract, span1, how='left', left_on=['symbol', 'exp', 'strk1', 'opt'],
-                #          right_on=['symbol', 'exp', 'strk', 'opt']).to_numpy()
-
-                # df2 = df
-                # print(df.shape)
+            if df.shape[0] != 0:
                 self.rc += df.shape[0]
                 print('rc', self.rc)
 
@@ -102,23 +99,17 @@ class Server(QMainWindow):
 
                 df = df.astype(convert_dict)
 
-
-
                 # print(df.dtypes)
 
                 # df['TerminalID'] = df['TerminalID'].astype(str)
 
-
-                df["Qty"]=np.where(df['BuySell']==1, df['Qty'], -df['Qty'])
-                df["TerminalID"]=np.where(df['TerminalID']=='0', df['ClientID'], df['TerminalID'])
-                df["Price"]= df["Price"] / 100
+                df["Qty"] = np.where(df['BuySell'] == 1, df['Qty'], -df['Qty'])
+                df["TerminalID"] = np.where(df['TerminalID'] == '0', df['ClientID'], df['TerminalID'])
+                df["Price"] = df["Price"] / 100
 
                 # float(int(data[6]) / 100) * -TQty
 
-                df["Tradeamt"]=-df["Qty"] * df["Price"]
-
-
-
+                df["Tradeamt"] = -df["Qty"] * df["Price"]
 
                 # df["TOC"] = np.where(df['OPTType']=='XX', np.where(df['BuySell']==1,(df['Val'] * self.f_buyex), (df['Val'] * self.f_sellex)),np.where(df['BuySell']==1,(df['Val'] * self.o_buyex), (df['Val'] * self.o_sellex)))
 
@@ -126,9 +117,9 @@ class Server(QMainWindow):
                 # print(df["Tradeamt"])
                 # print(df.columns)
 
-
                 # df=df.groupby(['TerminalID','Token','EXP','Strike','OPTType','Symbol','Instrument'])["Qty","Tradeamt"].sum().reset_index()
-                df=df.groupby(['TerminalID','Token','Series','Symbol','BuySell']).aggregate({'Qty':'sum','Tradeamt':'sum','Price':'mean'}).reset_index()
+                df = df.groupby(['TerminalID', 'Token', 'Series', 'Symbol', 'BuySell']).aggregate(
+                    {'Qty': 'sum', 'Tradeamt': 'sum', 'Price': 'mean'}).reset_index()
 
                 df["BQty"] = np.where(df['BuySell'] == 1, df['Qty'], 0.0)
                 df["SQty"] = np.where(df['BuySell'] == 2, df['Qty'], 0.0)
@@ -136,20 +127,16 @@ class Server(QMainWindow):
                 df["BAmt"] = np.where(df['BuySell'] == 1, df['Tradeamt'], 0.0)
                 df["SAmt"] = np.where(df['BuySell'] == 2, df['Tradeamt'], 0.0)
 
-
-
-
-
-
                 # df.to_csv('d:/aba.csv')
 
                 df = df.groupby(['TerminalID', 'Token', 'Series', 'Symbol']).aggregate(
-                    {'Qty': 'sum', 'Tradeamt': 'sum','Price':'mean', 'BQty': 'sum', 'SQty': 'sum','BAmt': 'sum', 'SAmt': 'sum'}).reset_index()
+                    {'Qty': 'sum', 'Tradeamt': 'sum', 'Price': 'mean', 'BQty': 'sum', 'SQty': 'sum', 'BAmt': 'sum',
+                     'SAmt': 'sum'}).reset_index()
 
                 df["IntraDayQty"] = np.where(abs(df['BQty']) < abs(df['SQty']), abs(df['BQty']), abs(df['SQty']))
 
-                df["BuyIntra"] = (abs(df["IntraDayQty"] * df["Price"])/ 10000000) * self.i_buyex
-                df["SellIntra"] = (abs(df["IntraDayQty"] * df["Price"])/ 10000000) * self.i_sellex
+                df["BuyIntra"] = (abs(df["IntraDayQty"] * df["Price"]) / 10000000) * self.i_buyex
+                df["SellIntra"] = (abs(df["IntraDayQty"] * df["Price"]) / 10000000) * self.i_sellex
 
                 df["TotalIntra"] = df["BuyIntra"] + df["SellIntra"]
 
@@ -158,13 +145,12 @@ class Server(QMainWindow):
                 # ).unstack()
                 # for i in df.to_numpy():
                 #     # print(type(row))
-                    # self.sgdatasend.emit(i)
-                et=time.time()
-                print('et',et-st)
+                # self.sgdatasend.emit(i)
+                et = time.time()
+                print('et', et - st)
 
                 # df.to_csv('d:/aaa.csv')
                 # print('fjdf')
-
 
                 for row in df.values.tolist():
                     for izzz in self.clientList:
@@ -181,87 +167,133 @@ class Server(QMainWindow):
 
                         jd = k.encode('UTF-8')
                         izzz.write(jd)
-                        # print(len(jd))
-                        # print(self.rc)
 
-                        # self.clientConnection.waitForBytesWritten(5000)
-                        # time.sleep(0.005)
+            ################################################################################################
+            # self.maindf = pd.concat([self.maindf, df1],
+            #                         axis=0, ignore_index=True)
+            #
+            # df1 = self.maindf
+            #
+            # if df1.shape[0]!=0:
+            #
+            #
+            #     # print(df.columns)
+            #     # print(df.dtypes)
+            #     df1 = df1.iloc[:, [0, 4, 5, 6, 7,12,23,26, 27]]
+            #
+            #     df1.columns = ['TradeNo', 'Token', 'Qty', 'Price', 'BuySell', 'ClientID', 'TerminalID', 'Symbol', 'Series',
+            #                      ]
+            #
+            #     # df=df.drop_duplicates(subset=['TradeNo','ClientID'])
+            #     df=df1.drop_duplicates()
+            #
+            #     df = df.loc[self.notisSNo:, :]
+            #
+            #     self.notisSNo = self.maindf.shape[0]
+            #
+            #     # pd.merge(contract, span1, how='left', left_on=['symbol', 'exp', 'strk1', 'opt'],
+            #     #          right_on=['symbol', 'exp', 'strk', 'opt']).to_numpy()
+            #
+            #     # df2 = df
+            #     # print(df.shape)
+            #     self.rc += df.shape[0]
+            #     print('rc', self.rc)
+            #
+            #     convert_dict = {'TerminalID': str, 'ClientID': str
+            #                     }
+            #
+            #     df = df.astype(convert_dict)
+            #
+            #
+            #
+            #     # print(df.dtypes)
+            #
+            #     # df['TerminalID'] = df['TerminalID'].astype(str)
+            #
+            #
+            #     df["Qty"]=np.where(df['BuySell']==1, df['Qty'], -df['Qty'])
+            #     df["TerminalID"]=np.where(df['TerminalID']=='0', df['ClientID'], df['TerminalID'])
+            #     df["Price"]= df["Price"] / 100
+            #
+            #     # float(int(data[6]) / 100) * -TQty
+            #
+            #     df["Tradeamt"]=-df["Qty"] * df["Price"]
+            #
+            #
+            #
+            #
+            #     # df["TOC"] = np.where(df['OPTType']=='XX', np.where(df['BuySell']==1,(df['Val'] * self.f_buyex), (df['Val'] * self.f_sellex)),np.where(df['BuySell']==1,(df['Val'] * self.o_buyex), (df['Val'] * self.o_sellex)))
+            #
+            #     # print(df["Qty"])
+            #     # print(df["Tradeamt"])
+            #     # print(df.columns)
+            #
+            #
+            #     # df=df.groupby(['TerminalID','Token','EXP','Strike','OPTType','Symbol','Instrument'])["Qty","Tradeamt"].sum().reset_index()
+            #     df=df.groupby(['TerminalID','Token','Series','Symbol','BuySell']).aggregate({'Qty':'sum','Tradeamt':'sum','Price':'mean'}).reset_index()
+            #
+            #     df["BQty"] = np.where(df['BuySell'] == 1, df['Qty'], 0.0)
+            #     df["SQty"] = np.where(df['BuySell'] == 2, df['Qty'], 0.0)
+            #
+            #     df["BAmt"] = np.where(df['BuySell'] == 1, df['Tradeamt'], 0.0)
+            #     df["SAmt"] = np.where(df['BuySell'] == 2, df['Tradeamt'], 0.0)
+            #
+            #
+            #
+            #
+            #
+            #
+            #     # df.to_csv('d:/aba.csv')
+            #
+            #     df = df.groupby(['TerminalID', 'Token', 'Series', 'Symbol']).aggregate(
+            #         {'Qty': 'sum', 'Tradeamt': 'sum','Price':'mean', 'BQty': 'sum', 'SQty': 'sum','BAmt': 'sum', 'SAmt': 'sum'}).reset_index()
+            #
+            #     df["IntraDayQty"] = np.where(abs(df['BQty']) < abs(df['SQty']), abs(df['BQty']), abs(df['SQty']))
+            #
+            #     df["BuyIntra"] = (abs(df["IntraDayQty"] * df["Price"])/ 10000000) * self.i_buyex
+            #     df["SellIntra"] = (abs(df["IntraDayQty"] * df["Price"])/ 10000000) * self.i_sellex
+            #
+            #     df["TotalIntra"] = df["BuyIntra"] + df["SellIntra"]
+            #
+            #     # df.groupby(['TerminalID','Token','Series','Symbol'])['Qty'].apply(
+            #     #     lambda s: pd.Series(s.nlargest(2).values, index=['BQty', 'SQty'])
+            #     # ).unstack()
+            #     # for i in df.to_numpy():
+            #     #     # print(type(row))
+            #         # self.sgdatasend.emit(i)
+            #     et=time.time()
+            #     print('et',et-st)
+            #
+            #     # df.to_csv('d:/aaa.csv')
+            #     # print('fjdf')
+            #
+            #
+            #     for row in df.values.tolist():
+            #         for izzz in self.clientList:
+            #             row = str(row)
+            #             # print(row)
+            #             jd = row.encode('UTF-8')
+            #             # print('djf',jd)
+            #             size = len(jd)
+            #             if (size > 220):
+            #                 print('size', size)
+            #
+            #             blank = 220 - size
+            #             k = row + (blank * ' ')
+            #
+            #             jd = k.encode('UTF-8')
+            #             izzz.write(jd)
+            #             # print(len(jd))
+            #             # print(self.rc)
+            #
+            #             # self.clientConnection.waitForBytesWritten(5000)
+            #             # time.sleep(0.005)
 
         except pd.errors.EmptyDataError:
             print('dfdf')
         except:
             print(traceback.print_exc())
-    def tradeFiletoNumpy(self):
 
-        i=''
-
-        st=time.time()
-        path = r'\\192.168.102.102\TradeAPI\TradeCM_'+self.today+'.txt'
-        # path = r'\\192.168.102.102\TradeAPI\TradeCM_24032023.txt'
-        #
-        f=open(path,'r')
-
-
-
-        lines = f.readlines()[self.rc:]
-
-        # print(lines)
-        if (lines != []):
-            # print(lines)
-            # newLines = lines[self.rc:]
-
-            for k in lines:
-                print(k)
-                i = k.split(',')
-                # print(len(i))
-                Clicode = i[12]
-                ctcl = i[20]
-                neatid = i[10]
-
-                # print('ppp',Clicode,neatid,ctcl)
-                if(Clicode == 'A1946' and neatid == '35788' and ctcl == '111111111111122' ):
-
-                    # print('ddd',k)
-                    # print(type(k))
-                    k=k.replace("111111111111122","A1946")
-
-
-                # self.alltradearr[self.rc, :]=i
-                self.rc += 1
-
-
-                for izzz in self.clientList:
-                    jd = k.encode('UTF-8')
-                    size=len(jd)
-                    # print('size',size)
-                    if(size>220):
-                        print('size',size)
-
-                    blank=220-size
-                    k=k+ (blank* ' ')
-
-                    jd = k.encode('UTF-8')
-                    izzz.write(jd)
-                    print(len(jd))
-                    print(self.rc)
-
-                    # self.clientConnection.waitForBytesWritten(5000)
-                    # time.sleep(0.005)
-
-
-                # self.alltradearr = np.vstack((self.alltradearr, abc))
-                # self.alltradearr[self.rc,:]=abc
-
-
-
-
-
-        # print(self.alltradearr)
-        print('rows',self.rc)
-        et = time.time()
-        print('time',et-st)
-        self.arr = self.alltradearr[:self.rc,:].tolist()
-        # print(sys.getsizeof(self.arr))
 
 
 
